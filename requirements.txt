@@ -1,1 +1,4 @@
-wpc intan sarah
+streamlit
+pandas
+requests
+matplotlib
