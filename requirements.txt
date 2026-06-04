@@ -1,4 +1,7 @@
-streamlit
+streamlit>=1.35.0
 pandas
-requests
-matplotlib
+numpy
+plotly>=5.0.0
+psycopg2-binary
+folium
+streamlit-folium>=0.13.0
