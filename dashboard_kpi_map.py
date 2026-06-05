@@ -499,7 +499,7 @@ else:
             if not pts:
                 return
             if highlight:                                   # drilled-in cell
-                fill, line, op, w = "#2563eb", HILITE, 0.60, 3
+                fill, line, op, w = "#249E94", HILITE, 0.70, 3
             elif kpi_breach(d):                             # KPI threshold breach → red
                 fill, line, op, w = "#ff2d2d", "#ff2d2d", 0.60, 1
             else:                                           # normal → full vendor colour
@@ -800,7 +800,7 @@ else:
                           title=_T("WPC Category — Daily Breach Count"),
                           xaxis=AX, yaxis=AX,
                           legend=dict(orientation="h", y=1.13, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="wpc_cat")
     with a2:
         fig = go.Figure()
         fig.add_trace(go.Bar(x=wstat["date"], y=wstat["Closed"], name="Closed", marker_color="#70AD47"))
@@ -809,7 +809,7 @@ else:
                           title=_T("WPC Status — Open vs Closed (recovered)"),
                           xaxis=AX, yaxis=AX,
                           legend=dict(orientation="h", y=1.13, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="wpc_stat")
 
     # RCA auto-classification on the cells breaching any KPI (period aggregate)
     breach_cells = pd.DataFrame()
@@ -832,7 +832,7 @@ else:
                                    textinfo="label+percent", textfont_size=11))
             fig.update_layout(**CT, height=340, title=_T("RCA Category (auto-classified)"),
                               legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="rca_pie")
         else:
             st.success("✅ No cells breaching WPC thresholds in this period.")
     with r2:
@@ -877,22 +877,22 @@ st.markdown("### 📈 Success Rate Trends")
 c1, c2 = st.columns(2)
 with c1:
     st.plotly_chart(line_chart(trend[x_col], trend["rrc_setup_sr"], PAL[0],
-        "rgba(56,189,248,0.07)", "RRC Setup SR (%)", 97, "Target 97%", y_range=[80,101]),
-        use_container_width=True)
+        "rgba(221,30,38,0.07)", "RRC Setup SR (%)", 97, "Target 97%", y_range=[80,101]),
+        use_container_width=True, key="lc_rrc")
 with c2:
     st.plotly_chart(line_chart(trend[x_col], trend["qos_flow_sr"], PAL[1],
-        "rgba(129,140,248,0.07)", "QoS Flow SR (%)", 97, "Target 97%", y_range=[80,101]),
-        use_container_width=True)
+        "rgba(37,99,235,0.07)", "QoS Flow SR (%)", 97, "Target 97%", y_range=[80,101]),
+        use_container_width=True, key="lc_qos")
 
 c3, c4 = st.columns(2)
 with c3:
     st.plotly_chart(line_chart(trend[x_col], trend["sdr"], PAL[4],
-        "rgba(251,113,133,0.07)", "SDR (%)", 5, "Threshold 5%", height=240),
-        use_container_width=True)
+        "rgba(219,39,119,0.07)", "SDR (%)", 5, "Threshold 5%", height=240),
+        use_container_width=True, key="lc_sdr")
 with c4:
     st.plotly_chart(line_chart(trend[x_col], trend["availability"], PAL[2],
-        "rgba(52,211,153,0.07)", "Cell Availability (%)", 99, "Target 99%",
-        height=240, y_range=[90,101]), use_container_width=True)
+        "rgba(22,163,74,0.07)", "Cell Availability (%)", 99, "Target 99%",
+        height=240, y_range=[90,101]), use_container_width=True, key="lc_avail")
 
 # ── Throughput + Traffic ───────────────────────────────────────────────────────
 st.markdown("### 🚀 Throughput & Traffic")
@@ -906,10 +906,10 @@ with c5:
     fig.update_layout(**CT, height=260, title=_T(f"DL / UL Throughput (Mbps) [{time_level}]"),
                       barmode="group", xaxis=AX, yaxis=AX,
                       legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="bar_thp")
 with c6:
     st.plotly_chart(line_chart(trend[x_col], trend["traffic_tb"], PAL[3],
-        "rgba(245,158,11,0.07)", "Traffic Volume (TB)", height=260), use_container_width=True)
+        "rgba(245,158,11,0.07)", "Traffic Volume (TB)", height=260), use_container_width=True, key="lc_traffic")
 
 # ── PRB Usage + DL SE ──────────────────────────────────────────────────────────
 st.markdown("### 📶 PRB Usage & Spectral Efficiency")
@@ -925,40 +925,40 @@ with c7:
     fig.update_layout(**CT, height=240, title=_T(f"DL / UL PRB Usage (%) [{time_level}]"),
                       xaxis=AX, yaxis=dict(**AX, range=[0,100]),
                       legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="lc_prb")
 with c8:
     if "dl_se" in trend.columns and not trend["dl_se"].isna().all():
         st.plotly_chart(line_chart(trend[x_col], trend["dl_se"], PAL[2],
             "rgba(22,163,74,0.07)", "DL Spectral Efficiency (bits/Hz)", height=240),
-            use_container_width=True)
+            use_container_width=True, key="lc_dlse_prb")
     else:
         st.info("⚠️ **dl_se** not available in this dataset.")
 
 # ── WPC Weekly KPIs — CQI · QPSK · Rank 2 · DL SE · UL NI ───────────────────
 st.markdown("### 📊 WPC Weekly KPIs")
-def safe_line(col, *args, **kwargs):
+def safe_line(col, *args, key=None, **kwargs):
     """Draw line chart only when the column actually exists in trend."""
     if col not in trend.columns or trend[col].isna().all():
         st.info(f"⚠️ **{col}** not available — verify counter name in schema.")
         return
     st.plotly_chart(line_chart(trend[x_col], trend[col], *args, **kwargs),
-                    use_container_width=True)
+                    use_container_width=True, key=key)
 
 wa1, wa2 = st.columns(2)
 with wa1:
-    safe_line("average_cqi", PAL[6], "rgba(34,211,238,0.07)",
+    safe_line("average_cqi", PAL[6], "rgba(8,145,178,0.07)",
               "CQI (avg)", target=8, target_label="Threshold 8", height=240)
 with wa2:
-    safe_line("qpsk_ratio", PAL[4], "rgba(251,113,133,0.07)",
+    safe_line("qpsk_ratio", PAL[4], "rgba(219,39,119,0.07)",
               "QPSK / Last-TTI Ratio (%)", target=60, target_label="Threshold 60%", height=240)
 
 wb1, wb2 = st.columns(2)
 with wb1:
-    safe_line("nr_rank2", PAL[1], "rgba(129,140,248,0.07)",
+    safe_line("nr_rank2", PAL[1], "rgba(37,99,235,0.07)",
               "Rank 2 (%)", target=40, target_label="Target 40%",
               height=240, y_range=[0, 100])
 with wb2:
-    safe_line("dl_se", PAL[2], "rgba(52,211,153,0.07)",
+    safe_line("dl_se", PAL[2], "rgba(22,163,74,0.07)",
               "DL Spectral Efficiency (bits/Hz)", height=240)
 
 wc1, wc2 = st.columns(2)
@@ -967,13 +967,13 @@ with wc1:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=trend[x_col], y=trend["ul_ni_avg"],
                                  line=dict(color=PAL[5], width=2.5),
-                                 fill="tozeroy", fillcolor="rgba(167,139,250,0.07)",
+                                 fill="tozeroy", fillcolor="rgba(124,58,237,0.07)",
                                  showlegend=False))
         fig.add_hline(y=-100, line_dash="dash", line_color="#fb7185",
                       annotation_text="Threshold −100 dBm", annotation_font_color="#fb7185")
         fig.update_layout(**CT, height=240, title=_T(f"N.UL.NI.Avg / RSSI (dBm) [{time_level}]"),
                           xaxis=AX, yaxis=AX)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="lc_ulni")
     else:
         st.info("⚠️ **RSSI / UL NI** not in raw_dashboard_kpi schema — add the column to enable.")
 with wc2:
@@ -997,24 +997,24 @@ if by_cell is not None and not by_cell.empty:
         handle_click(clickable_hbar(
             rank_or_single(by_cell, "sdr", largest=True), "sdr",
             "🔴 Highest SDR — Worst Drop Rate",
-            [[0, PAL[3]], [1, PAL[4]]], "{:.2f}%", key="bar_sdr"))
+            [[0, "#3BC1A8"], [1, "#005461"]], "{:.2f}%", key="bar_sdr"))
     with cr2:
         handle_click(clickable_hbar(
             rank_or_single(by_cell, "rrc_setup_sr", largest=False), "rrc_setup_sr",
             "🔴 Lowest RRC Setup SR — Worst Success Rate",
-            [[0, PAL[4]], [1, PAL[3]]], "{:.1f}%", key="bar_rrc", x_range=[0, 105]))
+            [[0, "#005461"], [1, "#3BC1A8"]], "{:.1f}%", key="bar_rrc", x_range=[0, 105]))
 
     cr3, cr4 = st.columns(2)
     with cr3:
         handle_click(clickable_hbar(
             rank_or_single(by_cell, "dl_thp", largest=False), "dl_thp",
             "🔴 Lowest DL Throughput — LTC (<3 Mbps)",
-            [[0, PAL[4]], [1, PAL[3]]], "{:.1f}", key="bar_dlthp"))
+            [[0, "#005461"], [1, "#3BC1A8"]], "{:.1f}", key="bar_dlthp"))
     with cr4:
         handle_click(clickable_hbar(
             rank_or_single(by_cell, "dl_prb", largest=True), "dl_prb",
             "🔴 Highest DL PRB — Most Congested (>95%)",
-            [[0, PAL[3]], [1, PAL[4]]], "{:.1f}%", key="bar_dlprb", x_range=[0, 105]))
+            [[0, "#3BC1A8"], [1, "#005461"]], "{:.1f}%", key="bar_dlprb", x_range=[0, 105]))
 
     # WPC Weekly extra rankings
     if "average_cqi" in by_cell.columns and by_cell["average_cqi"].notna().any():
@@ -1023,13 +1023,13 @@ if by_cell is not None and not by_cell.empty:
             handle_click(clickable_hbar(
                 rank_or_single(by_cell, "average_cqi", largest=False), "average_cqi",
                 "🔴 Lowest CQI — Poor Channel Quality (<8)",
-                [[0, PAL[4]], [1, PAL[3]]], "{:.2f}", key="bar_cqi"))
+                [[0, "#005461"], [1, "#3BC1A8"]], "{:.2f}", key="bar_cqi"))
         with cr6:
             if "qpsk_ratio" in by_cell.columns and by_cell["qpsk_ratio"].notna().any():
                 handle_click(clickable_hbar(
                     rank_or_single(by_cell, "qpsk_ratio", largest=True), "qpsk_ratio",
                     "🔴 Highest QPSK Ratio — Poor Modulation (>60%)",
-                    [[0, PAL[3]], [1, PAL[4]]], "{:.1f}%", key="bar_qpsk", x_range=[0, 105]))
+                    [[0, "#3BC1A8"], [1, "#005461"]], "{:.1f}%", key="bar_qpsk", x_range=[0, 105]))
 
     if "nr_rank2" in by_cell.columns and by_cell["nr_rank2"].notna().any():
         cr7, cr8 = st.columns(2)
@@ -1037,13 +1037,13 @@ if by_cell is not None and not by_cell.empty:
             handle_click(clickable_hbar(
                 rank_or_single(by_cell, "nr_rank2", largest=False), "nr_rank2",
                 "🔴 Lowest Rank 2 — Poor MIMO Usage (<40%)",
-                [[0, PAL[4]], [1, PAL[3]]], "{:.1f}%", key="bar_rank2", x_range=[0, 100]))
+                [[0, "#005461"], [1, "#3BC1A8"]], "{:.1f}%", key="bar_rank2", x_range=[0, 100]))
         with cr8:
             if "qos_flow_sr" in by_cell.columns:
                 handle_click(clickable_hbar(
                     rank_or_single(by_cell, "qos_flow_sr", largest=False), "qos_flow_sr",
                     "🔴 Lowest QoS Flow SR — Worst Setup (<97%)",
-                    [[0, PAL[4]], [1, PAL[3]]], "{:.1f}%", key="bar_qos", x_range=[0, 105]))
+                    [[0, "#005461"], [1, "#3BC1A8"]], "{:.1f}%", key="bar_qos", x_range=[0, 105]))
 
 # ── Raw data ───────────────────────────────────────────────────────────────────
 st.markdown("---")
