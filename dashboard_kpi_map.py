@@ -18,7 +18,7 @@ except Exception:
 
 # ── Page Config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="5G FWA KPI Dashboard",
+    page_title="5G FWA KPI Analysis Dashboard",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -30,28 +30,52 @@ GEO_CSV_PATH = "GCELL_W23.csv"   # <── put your GCELL csv next to this scrip
 # ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
-.stApp { background-color: #0d0f14; color: #e2e8f0; }
-section[data-testid="stSidebar"] { background-color: #111318; border-right: 1px solid #1e2330; }
+
+/* dark-red page background + light text */
+.stApp { background-color: #5c0d12; color: #f3e3e3; }
+.stApp p, .stApp li { color: #f3e3e3; }
+
+/* bright-red left sidebar */
+section[data-testid="stSidebar"] { background-color: #DD1E26; border-right: 1px solid #7a0f14; }
+section[data-testid="stSidebar"] * { color: #ffffff; }
+section[data-testid="stSidebar"] input { color: #1f2430; background: #ffffff; }
+
+/* widget labels + markdown stay light on the dark-red bg */
+[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label { color: #f3e3e3 !important; }
+.stMarkdown, .stMarkdown p, .stMarkdown li { color: #f3e3e3; }
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: #f3e3e3 !important; }
+
+/* metric cards: transparent on dark-red, light label, white value */
 [data-testid="metric-container"] {
-    background: linear-gradient(135deg, #161b27 0%, #1a2035 100%);
-    border: 1px solid #252d42; border-radius: 12px; padding: 16px;
+    background: transparent; border: none; border-left: 3px solid #DD1E26;
+    border-radius: 0; padding: 4px 0 4px 10px; box-shadow: none;
 }
 [data-testid="metric-container"] label {
     font-family: 'Space Mono', monospace; font-size: 10px !important;
-    letter-spacing: 1.5px; text-transform: uppercase; color: #64748b !important;
+    letter-spacing: 1px; text-transform: uppercase; color: #e7b9b9 !important;
 }
 [data-testid="metric-container"] [data-testid="stMetricValue"] {
-    font-family: 'Space Mono', monospace; font-size: 22px !important; color: #38bdf8 !important;
+    font-family: 'Space Mono', monospace; font-size: 20px !important; color: #ffffff !important;
 }
+
+/* greyish rounded chart cards */
+div[data-testid="stPlotlyChart"] {
+    background: #DFDFDF; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.22);
+}
+
+/* headers light on dark-red */
 h1, h2, h3 { font-family: 'Space Mono', monospace !important; }
-h1 { color: #f8fafc; font-size: 1.4rem !important; }
-h3 { color: #38bdf8; font-size: 0.9rem !important; }
-hr { border-color: #1e2330; }
+h1 { color: #ffffff !important; font-size: 1.4rem !important; }
+h2 { color: #ffffff !important; }
+h3 { color: #ffd4d4 !important; font-size: 0.95rem !important; }
+hr { border-color: #7a0f14; }
+
 .stButton > button {
-    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-    color: #0d0f14; font-family: 'Space Mono', monospace;
+    background: linear-gradient(135deg, #ffffff, #ffe3e3);
+    color: #b3161c; font-family: 'Space Mono', monospace;
     font-weight: 700; font-size: 12px; letter-spacing: 1px;
     border: none; border-radius: 8px;
 }
@@ -59,17 +83,14 @@ hr { border-color: #1e2330; }
     display: inline-block; padding: 3px 10px; border-radius: 999px;
     font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 1px;
 }
-.status-connected { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-.status-demo      { background: #1c1917; color: #f59e0b; border: 1px solid #78350f; }
+.status-connected { background: #e7f6ec; color: #1a7f37; border: 1px solid #9bdcb0; }
+.status-demo      { background: #fff4e5; color: #b45309; border: 1px solid #f6c684; }
 .drill-banner {
-    background: linear-gradient(135deg, #422006 0%, #3b1d05 100%);
-    border: 1px solid #b45309; border-radius: 10px; padding: 10px 16px;
-    font-family: 'Space Mono', monospace; font-size: 13px; color: #fbbf24;
-    letter-spacing: 0.5px;
+    background: #ffffff; border: 1px solid #DD1E26; border-radius: 10px; padding: 10px 16px;
+    font-family: 'Space Mono', monospace; font-size: 13px; color: #b3161c; letter-spacing: 0.5px;
 }
 .hint {
-    font-family: 'Space Mono', monospace; font-size: 11px;
-    color: #475569; letter-spacing: 0.5px;
+    font-family: 'Space Mono', monospace; font-size: 11px; color: #f0c4c4 !important; letter-spacing: 0.5px;
 }
 .legend-pill {
     display:inline-block; padding:2px 9px; margin:2px 4px; border-radius:999px;
@@ -80,13 +101,19 @@ hr { border-color: #1e2330; }
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
 CT = dict(
-    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    font_color="#94a3b8", font_family="DM Sans", margin=dict(l=0, r=0, t=36, b=0),
+    paper_bgcolor="#DFDFDF", plot_bgcolor="#DFDFDF",
+    font_color="#3a4150", font_family="DM Sans", margin=dict(l=12, r=12, t=48, b=10),
+    legend_font_color="#939393",
 )
-AX     = dict(gridcolor="#1e2330", showline=False, tickfont_color="#64748b")
-AX_REV = dict(gridcolor="#1e2330", showline=False, tickfont_color="#64748b", autorange="reversed")
-PAL    = ["#38bdf8", "#818cf8", "#34d399", "#f59e0b", "#fb7185", "#a78bfa", "#22d3ee"]
-HILITE = "#fbbf24"   # gold for the drilled-into cell
+AX     = dict(gridcolor="#c4c4c4", showline=False, tickfont_color="#5b6270")
+AX_REV = dict(gridcolor="#c4c4c4", showline=False, tickfont_color="#5b6270", autorange="reversed")
+PAL    = ["#DD1E26", "#2563eb", "#16a34a", "#f59e0b", "#db2777", "#7c3aed", "#0891b2"]
+HILITE = "#FFD400"   # bright highlight for the drilled-into cell on the dark map
+
+_TITLE_FONT = dict(color="#4D4D4D", size=14, family="Space Mono")
+def _T(text):
+    """Return a Plotly title dict with explicit font — survives Streamlit's theme injection."""
+    return dict(text=text, font=_TITLE_FONT)
 
 # Vendor brand colours for the map
 VENDOR_COLORS = {
@@ -163,25 +190,21 @@ def load_geo(source):
 
 # ── SQL Templates ──────────────────────────────────────────────────────────────
 KPI_COLS_SQL = """
-    SUM(rrc_succconnestab_time) / NULLIF(SUM(rrc_attconnestab_time), 0) * 100           AS rrc_setup_sr,
-    SUM(flow_nbrsuccestab_number) / NULLIF(SUM(flow_nbrattestab_number), 0) * 100        AS qos_flow_sr,
-    100 * SUM(context_attrelgnb_number - context_attrelgnb_normal_number)
-        / NULLIF(SUM(context_succinitalsetup_time), 0)                                   AS sdr,
-    SUM(rlc_upoctdl_kbyte - rlc_uplastttioctdl_kbyte) * 8
-        / NULLIF(SUM(rlc_thrptimedl_ms), 0)                                              AS dl_thp,
-    SUM(rlc_upoctul_kbyte - rlc_uplastttioctul_kbyte) * 8
-        / NULLIF(SUM(rlc_thrptimeul_ms), 0)                                              AS ul_thp,
-    (SUM(pdcp_upoctdl_kbyte) + SUM(pdcp_upoctul_kbyte)) / 1024.0/1024.0/1024.0          AS traffic_tb,
-    SUM(rru_pdschprbassn_number) / NULLIF(SUM(rru_pdschprbtot_number), 0) * 100          AS dl_prb,
-    SUM(rru_puschprbassn_number) / NULLIF(SUM(rru_puschprbtot_number), 0) * 100          AS ul_prb,
-    (SUM(periodic_interval_minute) - SUM(rru_cellunavailabletime_s))
-        / NULLIF(SUM(periodic_interval_minute), 0) * 100                                 AS availability,
-    SUM(rrc_nbrmeanactiveue_number)                                                       AS active_user,
-    SUM(mac_nbrreserrtbdl_number) / NULLIF(SUM(mac_nbrinittbdl_number), 0) * 100         AS dl_bler,
-    SUM(mac_nbrreserrtbul_number) / NULLIF(SUM(mac_nbrinittbul_number), 0) * 100         AS ul_bler,
-    100 * SUM(mac_nbrtbdl_rank4_number)
-        / NULLIF(SUM(mac_nbrtbdl_rank1_number+mac_nbrtbdl_rank2_number
-                    +mac_nbrtbdl_rank3_number+mac_nbrtbdl_rank4_number), 0)              AS nr_rank4
+    SUM(rrc_sr_num)            / NULLIF(SUM(rrc_sr_denum), 0)            * 100   AS rrc_setup_sr,
+    SUM(qos_flow_sr_num)       / NULLIF(SUM(qos_flow_sr_denum), 0)       * 100   AS qos_flow_sr,
+    SUM(service_drop_rate_num) / NULLIF(SUM(service_drop_rate_denum), 0) * 100   AS sdr,
+    SUM(dl_throughput_num)     / NULLIF(SUM(dl_throughput_denum), 0)             AS dl_thp,
+    SUM(ul_throughput_num)     / NULLIF(SUM(ul_throughput_denum), 0)             AS ul_thp,
+    SUM(total_traffic_tb)                                                        AS traffic_tb,
+    SUM(dl_prb_usage_num)      / NULLIF(SUM(dl_prb_usage_denum), 0)      * 100   AS dl_prb,
+    SUM(ul_prb_usage_num)      / NULLIF(SUM(ul_prb_usage_denum), 0)      * 100   AS ul_prb,
+    SUM(availability_num)      / NULLIF(SUM(availability_denum), 0)      * 100   AS availability,
+    AVG(active_user)                                                             AS active_user,
+    SUM(rank4_num)             / NULLIF(SUM(rank4_denum), 0)             * 100   AS nr_rank4,
+    SUM(average_cqi_num)       / NULLIF(SUM(average_cqi_denum), 0)               AS average_cqi,
+    SUM(qpsk_ratio_num)        / NULLIF(SUM(qpsk_ratio_denum), 0)        * 100   AS qpsk_ratio,
+    SUM(rank2_num)             / NULLIF(SUM(rank2_denum), 0)             * 100   AS nr_rank2,
+    SUM(dl_se_num)             / NULLIF(SUM(dl_se_denum), 0)                     AS dl_se
 """
 
 def build_sql(date_from, date_to, time_level, agg_level, cell_clause):
@@ -191,16 +214,13 @@ def build_sql(date_from, date_to, time_level, agg_level, cell_clause):
         group_cols  = "date, time" if is_hourly else "date"
         select_dims = "date, time," if is_hourly else "date,"
     else:
-        group_cols  = "date, time, cell_name" if is_hourly else "date, cell_name"
-        select_dims = """date, time,
-            LEFT(cell_name, LENGTH(cell_name) - POSITION('_' IN REVERSE(cell_name))) AS nename,
-            cell_name,""" if is_hourly else """date,
-            LEFT(cell_name, LENGTH(cell_name) - POSITION('_' IN REVERSE(cell_name))) AS nename,
-            cell_name,"""
+        group_cols  = "date, time, cell_name, ne_name" if is_hourly else "date, cell_name, ne_name"
+        select_dims = "date, time, ne_name AS nename, cell_name," if is_hourly \
+                      else "date, ne_name AS nename, cell_name,"
     return f"""
         SELECT {select_dims}
         {KPI_COLS_SQL}
-        FROM raw_counter_bai
+        FROM raw_dashboard_kpi
         WHERE date BETWEEN '{date_from}' AND '{date_to}' {cell_clause}
         GROUP BY {group_cols}
         ORDER BY {group_cols}
@@ -218,13 +238,15 @@ def demo_data(date_from, date_to, time_level, agg_level, cells_list):
 
     def kpi_row():
         return dict(
-            rrc_setup_sr=rng.uniform(95, 99.9), qos_flow_sr=rng.uniform(94, 99.5),
-            sdr=rng.uniform(0.1, 2.5),          dl_thp=rng.uniform(50, 300),
-            ul_thp=rng.uniform(10, 80),          traffic_tb=rng.uniform(0.001, 0.05),
-            dl_prb=rng.uniform(20, 85),          ul_prb=rng.uniform(10, 60),
-            availability=rng.uniform(98, 100),   active_user=int(rng.integers(5, 60)),
-            dl_bler=rng.uniform(0.1, 5),         ul_bler=rng.uniform(0.1, 4),
+            rrc_setup_sr=rng.uniform(93, 99.9), qos_flow_sr=rng.uniform(93, 99.5),
+            sdr=rng.uniform(0.1, 7.5),          dl_thp=rng.uniform(1, 300),
+            ul_thp=rng.uniform(1, 80),           traffic_tb=rng.uniform(0.001, 0.05),
+            dl_prb=rng.uniform(20, 98),          ul_prb=rng.uniform(10, 70),
+            availability=rng.uniform(97, 100),   active_user=int(rng.integers(5, 60)),
             nr_rank4=rng.uniform(10, 60),
+            average_cqi=rng.uniform(4, 12),      qpsk_ratio=rng.uniform(30, 80),
+            nr_rank2=rng.uniform(15, 60),         dl_se=rng.uniform(2, 8),
+            ul_ni_avg=rng.uniform(-115, -85),    # not in raw_dashboard_kpi (demo only)
         )
 
     for d in days:
@@ -282,7 +304,7 @@ def clickable_hbar(data, value_col, title, cmap_lohi, fmt, key, x_range=None):
         hovertemplate="%{y}<br>" + value_col + ": %{x:.2f}<br><i>click to drill in</i><extra></extra>",
     ))
     xaxis = dict(**AX, range=x_range) if x_range else AX
-    fig.update_layout(**CT, height=340, title=title, xaxis=xaxis, yaxis=AX_REV)
+    fig.update_layout(**CT, height=340, title=_T(title), xaxis=xaxis, yaxis=AX_REV)
     event = st.plotly_chart(fig, use_container_width=True, key=key,
                             on_select="rerun", selection_mode="points")
     return get_clicked_cell(event)
@@ -296,7 +318,7 @@ def rank_or_single(by_cell, kpi, largest=True, n=10):
 
 # ── Sidebar — DB + GCELL upload ────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 📡 5G FWA KPI Dashboard")
+    st.markdown("## 📡 5G FWA KPI Analysis")
     st.markdown("---")
     st.markdown("### 🔌 Database")
     db_host = st.text_input("Host",     value="localhost")
@@ -353,7 +375,7 @@ connected = st.session_state.connected and not use_demo
 # ── Header ─────────────────────────────────────────────────────────────────────
 hh1, hh2 = st.columns([5, 1])
 with hh1:
-    st.markdown("# 📡 5G FWA KPI Dashboard")
+    st.markdown("# 📡 5G FWA KPI Analysis Dashboard")
 with hh2:
     badge = "status-demo" if (use_demo or not connected) else "status-connected"
     label = "◈ DEMO MODE"  if (use_demo or not connected) else "● LIVE DATA"
@@ -385,11 +407,14 @@ else:
         beam_mult = st.slider("Beam length ×", 1.0, 8.0, 3.0, 0.5,
             help="Visual exaggeration of the GCELL RADIUS (~250 m) for readability")
         HL_OPTS = {
-            "Vendor colour":           None,
-            "High SDR (>2%)":          ("sdr",          "gt", 2.0),
-            "Low RRC SR (<95%)":       ("rrc_sr",       "lt", 95.0),
-            "Low QoS Flow (<95%)":     ("qos_sr",       "lt", 95.0),
-            "Low Availability (<99%)": ("availability", "lt", 99.0),
+            "Vendor colour":             None,
+            "High SDR (>5%)":            ("sdr",          "gt",  5.0),
+            "Low RRC SR (<97%)":         ("rrc_sr",       "lt", 97.0),
+            "Low QoS Flow (<97%)":       ("qos_sr",       "lt", 97.0),
+            "Low Availability (<99%)":   ("availability", "lt", 99.0),
+            "Low CQI (<8)":              ("average_cqi",  "lt",  8.0),
+            "High QPSK Ratio (>60%)":    ("qpsk_ratio",   "gt", 60.0),
+            "Low Rank 2 (<40%)":         ("nr_rank2",     "lt", 40.0),
         }
         hl_choice = st.selectbox("🎨 Colour wedges red by", list(HL_OPTS.keys()), index=0)
         hl_rule = HL_OPTS[hl_choice]
@@ -546,7 +571,7 @@ if not is_national:
     else:
         try:
             cell_df   = run_query(conn,
-                f"SELECT DISTINCT cell_name FROM raw_counter_bai "
+                f"SELECT DISTINCT cell_name FROM raw_dashboard_kpi "
                 f"WHERE date BETWEEN '{date_from}' AND '{date_to}' ORDER BY cell_name")
             all_cells = cell_df["cell_name"].tolist()
         except Exception:
@@ -599,7 +624,8 @@ df_view = df[df["cell_name"] == active_cell] if (active_cell and "cell_name" in 
 
 # ── Aggregations ───────────────────────────────────────────────────────────────
 KPI_COLS = ["rrc_setup_sr","qos_flow_sr","sdr","dl_thp","ul_thp","traffic_tb",
-            "dl_prb","ul_prb","availability","active_user","dl_bler","ul_bler","nr_rank4"]
+            "dl_prb","ul_prb","availability","active_user","nr_rank4",
+            "average_cqi","qpsk_ratio","nr_rank2","dl_se","ul_ni_avg"]
 agg_dict = {k: "mean" for k in KPI_COLS if k in df_view.columns}
 agg_dict["traffic_tb"]  = "sum"; agg_dict["active_user"] = "sum"
 trend = df_view.groupby(x_col).agg(agg_dict).reset_index()
@@ -630,15 +656,207 @@ else:
 st.markdown(f"**Scope:** {scope_txt} &nbsp;|&nbsp; **Time Level:** {time_level} &nbsp;|&nbsp; "
             f"**Period:** {date_from.strftime('%d %b %Y')} → {date_to.strftime('%d %b %Y')}")
 
-k1,k2,k3,k4,k5,k6,k7,k8 = st.columns(8)
-k1.metric("RRC Setup SR",   f"{trend['rrc_setup_sr'].mean():.2f}%")
-k2.metric("QoS Flow SR",    f"{trend['qos_flow_sr'].mean():.2f}%")
-k3.metric("SDR",            f"{trend['sdr'].mean():.2f}%")
-k4.metric("Availability",   f"{trend['availability'].mean():.2f}%")
-k5.metric("DL Throughput",  f"{trend['dl_thp'].mean():.1f} Mbps")
-k6.metric("UL Throughput",  f"{trend['ul_thp'].mean():.1f} Mbps")
-k7.metric("Traffic Volume", f"{trend['traffic_tb'].sum():.3f} TB")
-k8.metric("Active Users",   f"{int(trend['active_user'].sum()):,}")
+import datetime as _dt
+
+# "good direction" for each KPI: True = higher is better
+KPI_DIR = {"rrc_setup_sr": True, "qos_flow_sr": True, "sdr": False, "availability": True,
+           "average_cqi": True, "dl_thp": True, "dl_prb": False, "qpsk_ratio": False,
+           "nr_rank2": True, "ul_ni_avg": False, "traffic_tb": True}
+
+def _daily_series(col):
+    if col not in df.columns:
+        return None
+    # traffic is a sum per day; everything else is mean
+    agg = "sum" if col in ("traffic_tb", "active_user") else "mean"
+    s = df.groupby("date")[col].agg(agg).sort_index()
+    return s if len(s) else None
+
+def kpi_delta(col):
+    """(latest-day value, change vs ~D-7, improved?)"""
+    s = _daily_series(col)
+    if s is None or s.empty:
+        return None, None, None
+    cur = s.iloc[-1]
+    last = s.index[-1]
+    d7 = None
+    try:
+        target = last - _dt.timedelta(days=7)
+        prior = s[s.index <= target]
+        d7 = prior.iloc[-1] if len(prior) else (s.iloc[0] if len(s) > 1 else None)
+    except Exception:
+        d7 = s.iloc[0] if len(s) > 1 else None
+    if d7 is None or pd.isna(d7) or pd.isna(cur):
+        return cur, None, None
+    delta = cur - d7
+    higher_better = KPI_DIR.get(col, True)
+    improved = None if abs(delta) < 1e-9 else ((delta > 0) if higher_better else (delta < 0))
+    return cur, delta, improved
+
+def metric_card(label, col, unit="", dec=2):
+    cur, delta, improved = kpi_delta(col)
+    if cur is None:
+        val = "—"; big_arrow = ""; delta_html = "<span style='color:#e0a8a8;font-size:10px'>not in raw_dashboard_kpi</span>"
+    else:
+        val = f"{cur:.{dec}f}{unit}"
+        big_arrow = ("↑" if improved else "↓") if improved is not None else ""
+        if delta is None:
+            delta_html = "<span style='color:#e0a8a8;font-size:10px'>no D-7 data</span>"
+        else:
+            sm_arrow = "+" if improved else ("-" if improved is False else "—")
+            delta_html = (f"<span style='color:#ffffff'>{sm_arrow} {abs(delta):.{dec}f}{unit}</span> "
+                          f"<span style='color:#e0a8a8;font-size:10px'>vs D-7</span>")
+    return (f"<div style='border-left:3px solid #DD1E26;padding:2px 0 8px 10px;margin-bottom:4px'>"
+            f"<div style='font-family:Space Mono,monospace;font-size:10px;letter-spacing:1px;"
+            f"text-transform:uppercase;color:#e7b9b9'>{label}</div>"
+            f"<div style='font-family:Space Mono,monospace;font-size:26px;color:#ffffff;"
+            f"line-height:1.15'>{val}&nbsp;{big_arrow}</div>"
+            f"<div style='font-family:Space Mono,monospace;font-size:12px'>{delta_html}</div></div>")
+
+ROW1 = [("Traffic",     "traffic_tb",   " TB",   3),
+        ("RRC SR",      "rrc_setup_sr", "%",     2),
+        ("QOS SR",      "qos_flow_sr",  "%",     2),
+        ("SDR",         "sdr",          "%",     2),
+        ("Availability","availability", "%",     2)]
+ROW2 = [("PRB",         "dl_prb",       "%",     1),
+        ("QPSK",        "qpsk_ratio",   "%",     1),
+        ("RSSI",        "ul_ni_avg",    " dBm",  1),
+        ("Rank 2",      "nr_rank2",     "%",     1),
+        ("CQI",         "average_cqi",  "",      2)]
+for rowdef in (ROW1, ROW2):
+    n = len(rowdef)
+    cols = st.columns(n)
+    for c, (lbl, col, u, dec) in zip(cols, rowdef):
+        c.markdown(metric_card(lbl, col, u, dec), unsafe_allow_html=True)
+st.markdown("<div class='hint'>↑ improved · ↓ degraded &nbsp;·&nbsp; +/− delta vs 7 days earlier (D-7)</div>",
+            unsafe_allow_html=True)
+st.markdown("---")
+
+# ── WPC Analysis & RCA ─────────────────────────────────────────────────────────
+st.markdown("### 🧰 WPC Analysis & RCA")
+
+WPC_RULES = {  # label : (column, comparison, threshold)
+    "Availability": ("availability",  "lt", 99.0),
+    "QOS SR":       ("qos_flow_sr",   "lt", 97.0),
+    "RRC SR":       ("rrc_setup_sr",  "lt", 97.0),
+    "SDR":          ("sdr",           "gt", 5.0),
+    "LTC":          ("dl_thp",        "lt", 3.0),
+}
+WPC_COLORS = {"Availability": "#4472C4", "QOS SR": "#ED7D31", "RRC SR": "#A5A5A5",
+              "SDR": "#FFC000", "LTC": "#5B9BD5"}
+
+def _breach(frame, col, cmp, thr):
+    if col not in frame.columns:
+        return pd.Series(False, index=frame.index)
+    s = pd.to_numeric(frame[col], errors="coerce")
+    return (s > thr) if cmp == "gt" else (s < thr)
+
+def auto_rca(r):
+    """First-match heuristic RCA from a breaching cell's KPI signature."""
+    g = lambda k, d: (d if pd.isna(r.get(k, np.nan)) else r.get(k))
+    if g("ul_ni_avg", -120) > -100:                              return "Interference"
+    if g("dl_prb", 0) > 95:                                       return "Capacity"
+    if g("qpsk_ratio", 0) > 60 or g("average_cqi", 99) < 8:       return "Coverage"
+    if g("nr_rank2", 99) < 40:                                    return "Coverage - ISD >2km"
+    if g("dl_thp", 99) < 3:                                       return "Coverage - End Cell"
+    if (g("rrc_setup_sr", 100) < 97 or g("qos_flow_sr", 100) < 97) and g("active_user", 99) < 10:
+        return "Low Attempt"
+    return "Hygiene"
+
+if is_national or "cell_name" not in df.columns:
+    st.info("ℹ️ Switch **Aggregation Level** to **Vendor** for per-cell WPC breach analysis.")
+else:
+    dates = sorted(df["date"].unique())
+
+    # daily breach counts per KPI category
+    wcat = pd.DataFrame({"date": dates})
+    for lbl, (col, cmp, thr) in WPC_RULES.items():
+        cnt = df[_breach(df, col, cmp, thr)].groupby("date")["cell_name"].nunique()
+        wcat[lbl] = wcat["date"].map(cnt).fillna(0).astype(int)
+
+    # Open = cells breaching any KPI that day · Closed = recovered vs the previous day
+    anyb = pd.Series(False, index=df.index)
+    for lbl, (col, cmp, thr) in WPC_RULES.items():
+        anyb = anyb | _breach(df, col, cmp, thr)
+    open_sets = {d: set(df.loc[anyb & (df["date"] == d), "cell_name"]) for d in dates}
+    opens, closeds, prev = [], [], set()
+    for d in dates:
+        cur = open_sets[d]
+        opens.append(len(cur)); closeds.append(len(prev - cur)); prev = cur
+    wstat = pd.DataFrame({"date": dates, "Open": opens, "Closed": closeds})
+
+    # summary metric strip
+    msum = st.columns(6)
+    msum[0].metric("Open (latest day)", int(wstat["Open"].iloc[-1]) if len(wstat) else 0)
+    for i, lbl in enumerate(WPC_RULES):
+        msum[i + 1].metric(f"{lbl} hits", int(wcat[lbl].sum()))
+
+    a1, a2 = st.columns(2)
+    with a1:
+        fig = go.Figure()
+        for lbl in WPC_RULES:
+            fig.add_trace(go.Bar(x=wcat["date"], y=wcat[lbl], name=lbl,
+                                 marker_color=WPC_COLORS[lbl]))
+        fig.update_layout(**CT, height=320, barmode="stack",
+                          title=_T("WPC Category — Daily Breach Count"),
+                          xaxis=AX, yaxis=AX,
+                          legend=dict(orientation="h", y=1.13, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
+        st.plotly_chart(fig, use_container_width=True)
+    with a2:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=wstat["date"], y=wstat["Closed"], name="Closed", marker_color="#70AD47"))
+        fig.add_trace(go.Bar(x=wstat["date"], y=wstat["Open"],   name="Open",   marker_color="#ED7D31"))
+        fig.update_layout(**CT, height=320, barmode="stack",
+                          title=_T("WPC Status — Open vs Closed (recovered)"),
+                          xaxis=AX, yaxis=AX,
+                          legend=dict(orientation="h", y=1.13, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # RCA auto-classification on the cells breaching any KPI (period aggregate)
+    breach_cells = pd.DataFrame()
+    if by_cell is not None and not by_cell.empty:
+        bany = pd.Series(False, index=by_cell.index)
+        for lbl, (col, cmp, thr) in WPC_RULES.items():
+            bany = bany | _breach(by_cell, col, cmp, thr)
+        breach_cells = by_cell[bany].copy()
+        if not breach_cells.empty:
+            breach_cells["rca"] = breach_cells.apply(lambda r: auto_rca(r.to_dict()), axis=1)
+
+    r1, r2 = st.columns([1, 1])
+    with r1:
+        if not breach_cells.empty:
+            rc = breach_cells["rca"].value_counts()
+            RCA_PAL = ["#4472C4", "#ED7D31", "#A5A5A5", "#FFC000",
+                       "#5B9BD5", "#70AD47", "#DD1E26", "#7c3aed"]
+            fig = go.Figure(go.Pie(labels=rc.index, values=rc.values, hole=0.4,
+                                   marker=dict(colors=RCA_PAL),
+                                   textinfo="label+percent", textfont_size=11))
+            fig.update_layout(**CT, height=340, title=_T("RCA Category (auto-classified)"),
+                              legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.success("✅ No cells breaching WPC thresholds in this period.")
+    with r2:
+        st.markdown("**RCA → Recommended Action**")
+        rca_action = pd.DataFrame({
+            "RCA Category": ["Coverage", "Coverage - ISD >2km", "Coverage - End Cell",
+                             "Hygiene", "Capacity", "Low Attempt", "Interference"],
+            "Action": ["Parameter Tuning", "RET Tuning", "Hygiene Clearance",
+                       "Speed Up New Site", "Monitoring / TS On Site", "TS On Site",
+                       "Interference Hunting"],
+        })
+        st.dataframe(rca_action, use_container_width=True, hide_index=True)
+
+    if not breach_cells.empty:
+        with st.expander(f"⚠️ {len(breach_cells)} breaching cells — detail + auto-RCA "
+                         "(click a cell on the map to drill in)"):
+            cols = ["cell_name", "rca"] + [c for c in
+                    ["availability", "qos_flow_sr", "rrc_setup_sr", "sdr", "dl_thp",
+                     "average_cqi", "qpsk_ratio", "nr_rank2", "dl_prb"]
+                    if c in breach_cells.columns]
+            st.dataframe(breach_cells[cols].round(2)
+                         .sort_values("rca").reset_index(drop=True),
+                         use_container_width=True, hide_index=True)
+
 st.markdown("---")
 
 # ── Chart helper ───────────────────────────────────────────────────────────────
@@ -650,7 +868,7 @@ def line_chart(x, y, color, fill_color, title, target=None, target_label="",
     if target is not None:
         fig.add_hline(y=target, line_dash="dash", line_color="#fb7185",
                       annotation_text=target_label, annotation_font_color="#fb7185")
-    fig.update_layout(**CT, height=height, title=f"{title} [{time_level}]",
+    fig.update_layout(**CT, height=height, title=_T(f"{title} [{time_level}]"),
                       xaxis=AX, yaxis=dict(**AX, **({"range": y_range} if y_range else {})))
     return fig
 
@@ -659,17 +877,17 @@ st.markdown("### 📈 Success Rate Trends")
 c1, c2 = st.columns(2)
 with c1:
     st.plotly_chart(line_chart(trend[x_col], trend["rrc_setup_sr"], PAL[0],
-        "rgba(56,189,248,0.07)", "RRC Setup SR (%)", 95, "Target 95%", y_range=[80,101]),
+        "rgba(56,189,248,0.07)", "RRC Setup SR (%)", 97, "Target 97%", y_range=[80,101]),
         use_container_width=True)
 with c2:
     st.plotly_chart(line_chart(trend[x_col], trend["qos_flow_sr"], PAL[1],
-        "rgba(129,140,248,0.07)", "QoS Flow SR (%)", 95, "Target 95%", y_range=[80,101]),
+        "rgba(129,140,248,0.07)", "QoS Flow SR (%)", 97, "Target 97%", y_range=[80,101]),
         use_container_width=True)
 
 c3, c4 = st.columns(2)
 with c3:
     st.plotly_chart(line_chart(trend[x_col], trend["sdr"], PAL[4],
-        "rgba(251,113,133,0.07)", "SDR (%)", 2, "Threshold 2%", height=240),
+        "rgba(251,113,133,0.07)", "SDR (%)", 5, "Threshold 5%", height=240),
         use_container_width=True)
 with c4:
     st.plotly_chart(line_chart(trend[x_col], trend["availability"], PAL[2],
@@ -683,16 +901,18 @@ with c5:
     fig = go.Figure()
     fig.add_trace(go.Bar(x=trend[x_col], y=trend["dl_thp"], name="DL", marker_color=PAL[0], opacity=0.85))
     fig.add_trace(go.Bar(x=trend[x_col], y=trend["ul_thp"], name="UL", marker_color=PAL[1], opacity=0.85))
-    fig.update_layout(**CT, height=260, title=f"DL / UL Throughput (Mbps) [{time_level}]",
+    fig.add_hline(y=3, line_dash="dash", line_color="#fb7185",
+                  annotation_text="LTC 3 Mbps", annotation_font_color="#fb7185")
+    fig.update_layout(**CT, height=260, title=_T(f"DL / UL Throughput (Mbps) [{time_level}]"),
                       barmode="group", xaxis=AX, yaxis=AX,
-                      legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)"))
+                      legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
     st.plotly_chart(fig, use_container_width=True)
 with c6:
     st.plotly_chart(line_chart(trend[x_col], trend["traffic_tb"], PAL[3],
         "rgba(245,158,11,0.07)", "Traffic Volume (TB)", height=260), use_container_width=True)
 
-# ── PRB + BLER ─────────────────────────────────────────────────────────────────
-st.markdown("### 📶 PRB Usage & BLER")
+# ── PRB Usage + DL SE ──────────────────────────────────────────────────────────
+st.markdown("### 📶 PRB Usage & Spectral Efficiency")
 c7, c8 = st.columns(2)
 with c7:
     fig = go.Figure()
@@ -700,26 +920,67 @@ with c7:
                              line=dict(color=PAL[0], width=2)))
     fig.add_trace(go.Scatter(x=trend[x_col], y=trend["ul_prb"], name="UL PRB",
                              line=dict(color=PAL[1], width=2, dash="dot")))
-    fig.add_hline(y=80, line_dash="dash", line_color="#fb7185",
-                  annotation_text="Warning 80%", annotation_font_color="#fb7185")
-    fig.update_layout(**CT, height=240, title=f"DL / UL PRB Usage (%) [{time_level}]",
+    fig.add_hline(y=95, line_dash="dash", line_color="#fb7185",
+                  annotation_text="Threshold 95%", annotation_font_color="#fb7185")
+    fig.update_layout(**CT, height=240, title=_T(f"DL / UL PRB Usage (%) [{time_level}]"),
                       xaxis=AX, yaxis=dict(**AX, range=[0,100]),
-                      legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)"))
+                      legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)", font=dict(color="#939393")))
     st.plotly_chart(fig, use_container_width=True)
 with c8:
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=trend[x_col], y=trend["dl_bler"], name="DL BLER",
-                             line=dict(color=PAL[4], width=2)))
-    fig.add_trace(go.Scatter(x=trend[x_col], y=trend["ul_bler"], name="UL BLER",
-                             line=dict(color=PAL[3], width=2, dash="dot")))
-    fig.add_hline(y=10, line_dash="dash", line_color="#fb7185",
-                  annotation_text="Threshold 10%", annotation_font_color="#fb7185")
-    fig.update_layout(**CT, height=240, title=f"DL / UL BLER (%) [{time_level}]",
-                      xaxis=AX, yaxis=AX,
-                      legend=dict(orientation="h", y=1.1, bgcolor="rgba(0,0,0,0)"))
-    st.plotly_chart(fig, use_container_width=True)
+    if "dl_se" in trend.columns and not trend["dl_se"].isna().all():
+        st.plotly_chart(line_chart(trend[x_col], trend["dl_se"], PAL[2],
+            "rgba(22,163,74,0.07)", "DL Spectral Efficiency (bits/Hz)", height=240),
+            use_container_width=True)
+    else:
+        st.info("⚠️ **dl_se** not available in this dataset.")
 
-# ── Worst Performers / Selected-cell snapshot ──────────────────────────────────
+# ── WPC Weekly KPIs — CQI · QPSK · Rank 2 · DL SE · UL NI ───────────────────
+st.markdown("### 📊 WPC Weekly KPIs")
+def safe_line(col, *args, **kwargs):
+    """Draw line chart only when the column actually exists in trend."""
+    if col not in trend.columns or trend[col].isna().all():
+        st.info(f"⚠️ **{col}** not available — verify counter name in schema.")
+        return
+    st.plotly_chart(line_chart(trend[x_col], trend[col], *args, **kwargs),
+                    use_container_width=True)
+
+wa1, wa2 = st.columns(2)
+with wa1:
+    safe_line("average_cqi", PAL[6], "rgba(34,211,238,0.07)",
+              "CQI (avg)", target=8, target_label="Threshold 8", height=240)
+with wa2:
+    safe_line("qpsk_ratio", PAL[4], "rgba(251,113,133,0.07)",
+              "QPSK / Last-TTI Ratio (%)", target=60, target_label="Threshold 60%", height=240)
+
+wb1, wb2 = st.columns(2)
+with wb1:
+    safe_line("nr_rank2", PAL[1], "rgba(129,140,248,0.07)",
+              "Rank 2 (%)", target=40, target_label="Target 40%",
+              height=240, y_range=[0, 100])
+with wb2:
+    safe_line("dl_se", PAL[2], "rgba(52,211,153,0.07)",
+              "DL Spectral Efficiency (bits/Hz)", height=240)
+
+wc1, wc2 = st.columns(2)
+with wc1:
+    if "ul_ni_avg" in trend.columns and not trend["ul_ni_avg"].isna().all():
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=trend[x_col], y=trend["ul_ni_avg"],
+                                 line=dict(color=PAL[5], width=2.5),
+                                 fill="tozeroy", fillcolor="rgba(167,139,250,0.07)",
+                                 showlegend=False))
+        fig.add_hline(y=-100, line_dash="dash", line_color="#fb7185",
+                      annotation_text="Threshold −100 dBm", annotation_font_color="#fb7185")
+        fig.update_layout(**CT, height=240, title=_T(f"N.UL.NI.Avg / RSSI (dBm) [{time_level}]"),
+                          xaxis=AX, yaxis=AX)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("⚠️ **RSSI / UL NI** not in raw_dashboard_kpi schema — add the column to enable.")
+with wc2:
+    safe_line("nr_rank4", PAL[3], "rgba(245,158,11,0.07)",
+              "Rank 4 (%)", height=240, y_range=[0, 100])
+
+
 if by_cell is not None and not by_cell.empty:
     if active_cell:
         st.markdown(f"### 🎯 Selected Cell — {active_cell}")
@@ -747,22 +1008,51 @@ if by_cell is not None and not by_cell.empty:
     with cr3:
         handle_click(clickable_hbar(
             rank_or_single(by_cell, "dl_thp", largest=False), "dl_thp",
-            "🔴 Lowest DL Throughput (Mbps)",
+            "🔴 Lowest DL Throughput — LTC (<3 Mbps)",
             [[0, PAL[4]], [1, PAL[3]]], "{:.1f}", key="bar_dlthp"))
     with cr4:
         handle_click(clickable_hbar(
             rank_or_single(by_cell, "dl_prb", largest=True), "dl_prb",
-            "🔴 Highest DL PRB Usage — Most Congested",
+            "🔴 Highest DL PRB — Most Congested (>95%)",
             [[0, PAL[3]], [1, PAL[4]]], "{:.1f}%", key="bar_dlprb", x_range=[0, 105]))
+
+    # WPC Weekly extra rankings
+    if "average_cqi" in by_cell.columns and by_cell["average_cqi"].notna().any():
+        cr5, cr6 = st.columns(2)
+        with cr5:
+            handle_click(clickable_hbar(
+                rank_or_single(by_cell, "average_cqi", largest=False), "average_cqi",
+                "🔴 Lowest CQI — Poor Channel Quality (<8)",
+                [[0, PAL[4]], [1, PAL[3]]], "{:.2f}", key="bar_cqi"))
+        with cr6:
+            if "qpsk_ratio" in by_cell.columns and by_cell["qpsk_ratio"].notna().any():
+                handle_click(clickable_hbar(
+                    rank_or_single(by_cell, "qpsk_ratio", largest=True), "qpsk_ratio",
+                    "🔴 Highest QPSK Ratio — Poor Modulation (>60%)",
+                    [[0, PAL[3]], [1, PAL[4]]], "{:.1f}%", key="bar_qpsk", x_range=[0, 105]))
+
+    if "nr_rank2" in by_cell.columns and by_cell["nr_rank2"].notna().any():
+        cr7, cr8 = st.columns(2)
+        with cr7:
+            handle_click(clickable_hbar(
+                rank_or_single(by_cell, "nr_rank2", largest=False), "nr_rank2",
+                "🔴 Lowest Rank 2 — Poor MIMO Usage (<40%)",
+                [[0, PAL[4]], [1, PAL[3]]], "{:.1f}%", key="bar_rank2", x_range=[0, 100]))
+        with cr8:
+            if "qos_flow_sr" in by_cell.columns:
+                handle_click(clickable_hbar(
+                    rank_or_single(by_cell, "qos_flow_sr", largest=False), "qos_flow_sr",
+                    "🔴 Lowest QoS Flow SR — Worst Setup (<97%)",
+                    [[0, PAL[4]], [1, PAL[3]]], "{:.1f}%", key="bar_qos", x_range=[0, 105]))
 
 # ── Raw data ───────────────────────────────────────────────────────────────────
 st.markdown("---")
 with st.expander("🔍 Raw KPI Data" + (f"  —  filtered to {active_cell}" if active_cell else "")):
     disp = df_view.copy()
     for col in ["rrc_setup_sr","qos_flow_sr","sdr","dl_prb","ul_prb",
-                "availability","dl_bler","ul_bler","nr_rank4"]:
+                "availability","nr_rank4","average_cqi","qpsk_ratio","nr_rank2","dl_se"]:
         if col in disp.columns: disp[col] = disp[col].round(2)
-    for col in ["dl_thp","ul_thp"]:
+    for col in ["dl_thp","ul_thp","ul_ni_avg"]:
         if col in disp.columns: disp[col] = disp[col].round(1)
     sort_cols = [c for c in ["date","time","cell_name","nename"] if c in disp.columns]
     st.dataframe(disp.sort_values(sort_cols, ascending=[False]*len(sort_cols))
@@ -770,5 +1060,5 @@ with st.expander("🔍 Raw KPI Data" + (f"  —  filtered to {active_cell}" if a
 
 st.markdown("---")
 st.markdown("<div style='text-align:center;font-family:Space Mono,monospace;font-size:11px;"
-            "color:#334155;letter-spacing:1px'>5G NR KPI Dashboard · Baicells · surge_data</div>",
+            "color:#f0c4c4;letter-spacing:1px'>5G FWA KPI Analysis Dashboard · surge_data</div>",
             unsafe_allow_html=True)
