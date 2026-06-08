@@ -7,6 +7,9 @@ import datetime
 import numpy as np
 import math
 
+# ── Auth module ────────────────────────────────────────────────────────────────
+import auth  # auth.py must be in the same folder as this script
+
 # Folium map deps (pip install streamlit-folium folium)
 try:
     import folium
@@ -26,6 +29,44 @@ st.set_page_config(
 
 # ── Config: where to find the GCELL geo file on your machine ───────────────────
 GEO_CSV_PATH = "GCELL_W23.csv"   # <── put your GCELL csv next to this script, or upload via sidebar
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH GATE
+# DB credentials for the users table (same surge_data DB).
+# Override via environment variables for production.
+# ══════════════════════════════════════════════════════════════════════════════
+import os as _os
+
+_AUTH_CFG = dict(
+    host    = _os.environ.get("AUTH_DB_HOST",    "localhost"),
+    port    = int(_os.environ.get("AUTH_DB_PORT", 5432)),
+    dbname  = _os.environ.get("AUTH_DB_NAME",   "surge_data"),
+    user    = _os.environ.get("AUTH_DB_USER",   "postgres"),
+    password= _os.environ.get("AUTH_DB_PASSWORD","surge"),
+)
+
+# Ensure the users table exists (no-op after first run)
+try:
+    auth.init_db(_AUTH_CFG)
+except Exception as _e:
+    st.error(f"⚠️ Cannot connect to auth database: {_e}")
+    st.stop()
+
+# Show login if not authenticated
+if not auth.is_logged_in():
+    if auth.render_login(_AUTH_CFG):
+        st.rerun()
+    st.stop()
+
+# Force password change if flagged
+if auth.must_change_pw():
+    auth.render_force_change_pw(_AUTH_CFG)
+    st.stop()
+
+# Reached here = authenticated
+_current_user = auth.current_user()
+_current_role = auth.current_role()
+_is_admin     = auth.is_admin()
 
 # ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -157,36 +198,116 @@ def run_query(conn, sql):
     return pd.read_sql_query(sql, conn)
 
 # ── GCELL geo loader ───────────────────────────────────────────────────────────
-@st.cache_data(show_spinner=False)
-def load_geo(source):
-    """source = uploaded file buffer OR a filesystem path string."""
-    df = pd.read_csv(source)
+_GEO_COLS = ["cell_name","site","site_id","vendor","lat","lon",
+             "province","kab","kec","rrc_sr","sdr","qos_sr","dl_thp","dl_prb",
+             "azimuth","radius_km","beam","mtilt","etilt"]
+
+_GEO_RENAME = {
+    "Cell Name": "cell_name", "Site Name Surge": "site",
+    "Site ID Surge": "site_id", "Vendor gNB": "vendor",
+    "Latitude": "lat", "Longitude": "lon", "Province": "province",
+    "Kab": "kab", "Kec": "kec",
+    "RRC Setup Success Rate": "rrc_sr", "SDR": "sdr",
+    "QoS Flow Setup Success Rate": "qos_sr",
+    "NR User Downlink Average Throughput": "dl_thp", "DL PRB USAGE": "dl_prb",
+    "Azimuth": "azimuth", "RADIUS": "radius_km", "BEAM": "beam",
+    "M-Tilt": "mtilt", "E-Tilt": "etilt",
+}
+
+_GEO_NUMERIC = ["lat","lon","rrc_sr","sdr","qos_sr","dl_thp","dl_prb",
+                "azimuth","radius_km","beam","mtilt","etilt"]
+
+_CREATE_GCELL_TABLE = """
+CREATE TABLE IF NOT EXISTS dashboard_gcell (
+    id          SERIAL PRIMARY KEY,
+    cell_name   VARCHAR(128) UNIQUE NOT NULL,
+    site        VARCHAR(128),
+    site_id     VARCHAR(64),
+    vendor      VARCHAR(64),
+    lat         DOUBLE PRECISION,
+    lon         DOUBLE PRECISION,
+    province    VARCHAR(64),
+    kab         VARCHAR(64),
+    kec         VARCHAR(64),
+    rrc_sr      DOUBLE PRECISION,
+    sdr         DOUBLE PRECISION,
+    qos_sr      DOUBLE PRECISION,
+    dl_thp      DOUBLE PRECISION,
+    dl_prb      DOUBLE PRECISION,
+    azimuth     DOUBLE PRECISION,
+    radius_km   DOUBLE PRECISION,
+    beam        DOUBLE PRECISION,
+    mtilt       DOUBLE PRECISION,
+    etilt       DOUBLE PRECISION,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+def _parse_geo_df(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Normalise a raw GCELL CSV dataframe into the standard schema."""
+    df = df.copy()
     df.columns = [c.strip().lstrip("\ufeff") for c in df.columns]
-    ren = {
-        "Cell Name": "cell_name", "Site Name Surge": "site",
-        "Site ID Surge": "site_id", "Vendor gNB": "vendor",
-        "Latitude": "lat", "Longitude": "lon", "Province": "province",
-        "Kab": "kab", "Kec": "kec",
-        "RRC Setup Success Rate": "rrc_sr", "SDR": "sdr",
-        "QoS Flow Setup Success Rate": "qos_sr",
-        "NR User Downlink Average Throughput": "dl_thp", "DL PRB USAGE": "dl_prb",
-        "Azimuth": "azimuth", "RADIUS": "radius_km", "BEAM": "beam",
-        "M-Tilt": "mtilt", "E-Tilt": "etilt",
-    }
-    df = df.rename(columns={k: v for k, v in ren.items() if k in df.columns})
-    for c in ["lat","lon","rrc_sr","sdr","qos_sr","dl_thp","dl_prb",
-              "azimuth","radius_km","beam","mtilt","etilt"]:
+    df = df.rename(columns={k: v for k, v in _GEO_RENAME.items() if k in df.columns})
+    for c in _GEO_NUMERIC:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
     df = df.dropna(subset=["lat", "lon", "cell_name"])
-    # normalise vendor label spelling
     if "vendor" in df.columns:
         df["vendor"] = df["vendor"].astype(str).str.replace("FiberHome", "Fiberhome", regex=False)
-    keep = [c for c in ["cell_name","site","site_id","vendor","lat","lon",
-                        "province","kab","kec","rrc_sr","sdr","qos_sr","dl_thp","dl_prb",
-                        "azimuth","radius_km","beam","mtilt","etilt"]
-            if c in df.columns]
+    keep = [c for c in _GEO_COLS if c in df.columns]
     return df[keep].drop_duplicates("cell_name").reset_index(drop=True)
+
+@st.cache_data(show_spinner=False)
+def load_geo(source):
+    """source = uploaded file buffer OR a filesystem path string."""
+    return _parse_geo_df(pd.read_csv(source))
+
+def init_gcell_table(cfg: dict):
+    """Create dashboard_gcell if it doesn't exist."""
+    with get_conn(**cfg) as c, c.cursor() as cur:
+        cur.execute(_CREATE_GCELL_TABLE)
+        c.commit()
+
+def save_geo_to_db(cfg: dict, df: "pd.DataFrame"):
+    """Upsert all rows from df into dashboard_gcell."""
+    cols = [c for c in _GEO_COLS if c in df.columns]
+    with get_conn(**cfg) as c, c.cursor() as cur:
+        # truncate + re-insert is simplest for a config table
+        cur.execute("TRUNCATE TABLE dashboard_gcell")
+        for _, row in df.iterrows():
+            vals = [row.get(col) for col in cols]
+            ph   = ", ".join(["%s"] * len(cols))
+            col_str = ", ".join(cols)
+            cur.execute(
+                f"INSERT INTO dashboard_gcell ({col_str}) VALUES ({ph})",
+                vals
+            )
+        c.commit()
+
+@st.cache_data(show_spinner=False, ttl=300)
+def load_geo_from_db(cfg_tuple) -> "tuple[pd.DataFrame | None, str | None]":
+    """
+    Load geo from dashboard_gcell table.
+    cfg_tuple is a hashable tuple version of the cfg dict for st.cache_data.
+    Returns (df, last_updated_str) or (None, None) if table is empty.
+    """
+    cfg = dict(cfg_tuple)
+    try:
+        init_gcell_table(cfg)
+        df = pd.read_sql_query(
+            "SELECT * FROM dashboard_gcell ORDER BY cell_name", get_conn(**cfg)
+        )
+        if df.empty:
+            return None, None
+        ts_col = "uploaded_at"
+        last_ts = None
+        if ts_col in df.columns:
+            last_ts = pd.to_datetime(df[ts_col]).max()
+            df = df.drop(columns=[ts_col, "id"], errors="ignore")
+        ts_str = last_ts.strftime("%d %b %Y %H:%M") if last_ts is not None else "unknown"
+        return df, ts_str
+    except Exception:
+        return None, None
 
 # ── SQL Templates ──────────────────────────────────────────────────────────────
 KPI_COLS_SQL = """
@@ -319,6 +440,25 @@ def rank_or_single(by_cell, kpi, largest=True, n=10):
 # ── Sidebar — DB + GCELL upload ────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 📡 5G FWA KPI Analysis")
+
+    # ── Logged-in user info + logout ──────────────────────────────────────────
+    role_icon = "🛡️" if _is_admin else "👤"
+    st.markdown(f"""<div style='background:#3d080c;border:1px solid #7a0f14;border-radius:10px;
+             padding:10px 14px;margin-bottom:8px'>
+  <div style='font-family:Space Mono,monospace;font-size:11px;color:#e7b9b9;
+               letter-spacing:1px'>LOGGED IN AS</div>
+  <div style='font-family:Space Mono,monospace;font-size:15px;color:#ffffff;
+               font-weight:700;margin-top:2px'>{role_icon} {_current_user}</div>
+  <div style='font-family:Space Mono,monospace;font-size:10px;color:#ffd4d4;
+               letter-spacing:2px;text-transform:uppercase'>{_current_role}</div>
+</div>""", unsafe_allow_html=True)
+
+    if st.button("Logout", use_container_width=True, key="_sidebar_logout"):
+        auth.logout()
+        st.rerun()
+
+    auth.render_change_own_pw_widget(_AUTH_CFG)
+
     st.markdown("---")
     st.markdown("### 🔌 Database")
     db_host = st.text_input("Host",     value="localhost")
@@ -331,24 +471,56 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🗺️ GCELL Geo File")
-    geo_upload = st.file_uploader("Upload GCELL CSV", type=["csv"])
+    geo_upload = st.file_uploader("Upload & save GCELL CSV", type=["csv"],
+        help="Upload to update the stored GCELL data. Map always loads from last saved data.")
+    if geo_upload is not None:
+        st.session_state["_geo_pending_upload"] = geo_upload
 
     if st.session_state.connected and not use_demo:
         st.markdown('<span class="status-badge status-connected">● CONNECTED</span>',
                     unsafe_allow_html=True)
 
 # ── Load geo ───────────────────────────────────────────────────────────────────
-geo = None
-geo_err = None
-try:
-    if geo_upload is not None:
-        geo = load_geo(geo_upload)
-    else:
+geo      = None
+geo_err  = None
+geo_ts   = None   # "last updated" timestamp string
+
+# 1. If a new CSV was just uploaded → parse + save to DB
+_pending = st.session_state.get("_geo_pending_upload")
+if _pending is not None:
+    try:
+        _gdf = load_geo(_pending)
+        # save to DB only when DB credentials are available
+        _save_cfg = st.session_state.get("db_cfg") or dict(
+            host=db_host, port=db_port, dbname=db_name, user=db_user, password=db_pass)
+        try:
+            init_gcell_table(_save_cfg)
+            save_geo_to_db(_save_cfg, _gdf)
+            load_geo_from_db.clear()   # bust cache so next read picks up new data
+            st.session_state["_geo_pending_upload"] = None
+            st.sidebar.success(f"✅ GCELL saved — {len(_gdf)} sectors in DB.")
+        except Exception as _dbe:
+            st.sidebar.warning(f"⚠️ Couldn't persist to DB: {_dbe}\nUsing in-memory only.")
+        geo = _gdf
+    except Exception as e:
+        geo_err = str(e)
+
+# 2. If nothing uploaded yet → try loading from DB (falls back to local CSV)
+if geo is None:
+    _db_cfg = st.session_state.get("db_cfg") or dict(
+        host=db_host, port=db_port, dbname=db_name, user=db_user, password=db_pass)
+    _cfg_tuple = tuple(sorted(_db_cfg.items()))
+    geo, geo_ts = load_geo_from_db(_cfg_tuple)
+
+# 3. Last resort: local filesystem CSV (backwards compat)
+if geo is None:
+    try:
         import os
         if os.path.exists(GEO_CSV_PATH):
             geo = load_geo(GEO_CSV_PATH)
-except Exception as e:
-    geo_err = str(e)
+            geo_ts = "local file"
+    except Exception as e:
+        geo_err = str(e)
 
 # ── Connection ─────────────────────────────────────────────────────────────────
 conn = None
@@ -387,14 +559,17 @@ st.markdown("### 🗺️ Network Map")
 
 DEMO_CELLS = []
 if geo is None:
-    if geo_err:
-        st.warning(f"Couldn't read the GCELL file: {geo_err}")
-    elif not FOLIUM_OK:
+    if not FOLIUM_OK:
         st.warning("Map libraries missing. Install with: `pip install streamlit-folium folium`")
     else:
-        st.info("Upload your GCELL CSV in the sidebar (or place it next to this script as "
-                f"`{GEO_CSV_PATH}`) to show the network map.")
+        st.info("📂 No GCELL data in database yet. Upload your **GCELL CSV** in the sidebar to enable the map. "
+                "Once uploaded it will persist — you won't need to re-upload on every visit.")
+    if geo_err:
+        st.caption(f"⚠️ Load error: {geo_err}")
 else:
+    if geo_ts:
+        st.caption(f"🗺️ Geo data last updated: **{geo_ts}** · {len(geo)} sectors · "
+                   "Upload a new CSV in the sidebar to refresh.")
     # geo filters
     mf1, mf2, mf3 = st.columns([2, 2, 2])
     with mf1:
@@ -1057,6 +1232,13 @@ with st.expander("🔍 Raw KPI Data" + (f"  —  filtered to {active_cell}" if a
     sort_cols = [c for c in ["date","time","cell_name","nename"] if c in disp.columns]
     st.dataframe(disp.sort_values(sort_cols, ascending=[False]*len(sort_cols))
                     .reset_index(drop=True), use_container_width=True)
+
+st.markdown("---")
+
+# ── Admin Panel (admin role only) ─────────────────────────────────────────────
+if _is_admin:
+    with st.expander("🛡️ Admin Panel — User Management", expanded=False):
+        auth.render_admin_panel(_AUTH_CFG)
 
 st.markdown("---")
 st.markdown("<div style='text-align:center;font-family:Space Mono,monospace;font-size:11px;"
